@@ -74,7 +74,7 @@ func main() {
 
 	// 7. Start HTTP Server
 	addr := ":" + cfg.Port
-	log.Printf("🚀 ExpenseFlow Server listening on http://localhost%s", addr)
+	log.Printf("🚀 ExpenseFlow Server listening on %s (Live Production Ready)", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

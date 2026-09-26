@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, initLocalStore } from '../services/api';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { api, dedupeList } from '../services/api';
 import confetti from 'canvas-confetti';
 
 const AppContext = createContext();
@@ -28,7 +28,7 @@ export const AppProvider = ({ children }) => {
     return Boolean(localStorage.getItem('expenseflow_token') || currentUser);
   });
 
-  // Core Data States
+  // Core Data States (always deduplicated by unique ID)
   const [expenses, setExpenses] = useState([]);
   const [groups, setGroups] = useState([]);
   const [settlements, setSettlements] = useState([]);
@@ -76,11 +76,10 @@ export const AppProvider = ({ children }) => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Fetch all data
+  // Fetch all live data with strict deduplication
   const refreshData = useCallback(async () => {
     try {
       setLoading(true);
-      initLocalStore();
       const [expData, grpData, stmData, notifData] = await Promise.all([
         api.getExpenses({ search: searchQuery, category: selectedCategory, splitType: selectedSplitType }),
         api.getGroups(),
@@ -88,26 +87,52 @@ export const AppProvider = ({ children }) => {
         api.getNotifications(),
       ]);
 
-      setExpenses(expData || []);
-      setGroups(grpData || []);
-      setSettlements(stmData || []);
-      setNotifications(notifData || []);
+      setExpenses(dedupeList(expData || []));
+      setGroups(dedupeList(grpData || []));
+      setSettlements(dedupeList(stmData || []));
+      setNotifications(dedupeList(notifData || []));
     } catch (err) {
-      console.error('Failed to load data:', err);
+      console.error('Failed to load live data:', err);
     } finally {
       setLoading(false);
     }
   }, [searchQuery, selectedCategory, selectedSplitType]);
 
-  // Initial load
+  // Initial authentication & data load
   useEffect(() => {
-    refreshData();
+    let isMounted = true;
+    const initApp = async () => {
+      const token = localStorage.getItem('expenseflow_token');
+      // If token is missing or legacy mock string, authenticate with live backend
+      if (!token || token === 'mock_jwt_token_local_dev') {
+        try {
+          const authRes = await api.login('gayathiri@expenseflow.dev', 'password123');
+          if (authRes?.user && isMounted) {
+            setCurrentUser(authRes.user);
+            setIsAuthenticated(true);
+          }
+        } catch (e) {
+          console.warn('Initial live backend auth attempt:', e.message);
+        }
+      }
+      if (isMounted) {
+        refreshData();
+      }
+    };
+
+    initApp();
+    return () => {
+      isMounted = false;
+    };
   }, [refreshData]);
 
-  // WebSocket Connection
+  // Real-time WebSocket connection to Render
   useEffect(() => {
     let socket;
-    const wsUrl = 'ws://localhost:8080/api/ws';
+    let reconnectTimeout;
+    let heartbeatInterval;
+
+    const wsUrl = import.meta.env.VITE_WS_URL || 'wss://expenseflow-bl9s.onrender.com/api/ws';
 
     const connectWs = () => {
       try {
@@ -115,12 +140,20 @@ export const AppProvider = ({ children }) => {
 
         socket.onopen = () => {
           setWsConnected(true);
-          console.log('[WebSocket] Connected to ExpenseFlow real-time hub');
+          console.log('[WebSocket] Connected to ExpenseFlow real-time hub:', wsUrl);
+
+          // 25s ping heartbeat to prevent Render free-tier idle proxy timeout
+          heartbeatInterval = setInterval(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ type: 'PING' }));
+            }
+          }, 25000);
         };
 
         socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            if (data.type === 'PONG') return;
             console.log('[WebSocket Event]:', data);
 
             if (data.type === 'EXPENSE_CREATED' || data.type === 'EXPENSE_UPDATED' || data.type === 'EXPENSE_DELETED') {
@@ -140,6 +173,9 @@ export const AppProvider = ({ children }) => {
 
         socket.onclose = () => {
           setWsConnected(false);
+          clearInterval(heartbeatInterval);
+          // Auto-reconnect after 3 seconds
+          reconnectTimeout = setTimeout(connectWs, 3000);
         };
 
         socket.onerror = () => {
@@ -153,19 +189,23 @@ export const AppProvider = ({ children }) => {
     connectWs();
     return () => {
       if (socket) socket.close();
+      clearTimeout(reconnectTimeout);
+      clearInterval(heartbeatInterval);
     };
   }, [addToast, refreshData]);
 
-  // Expense Actions
+  // Expense Actions with strict deduplication
   const handleCreateExpense = async (expenseData) => {
     try {
       const created = await api.createExpense(expenseData);
-      setExpenses((prev) => [created, ...prev]);
-      addToast('Expense added successfully!');
-      refreshData();
+      if (created) {
+        setExpenses((prev) => dedupeList([created, ...prev]));
+      }
+      addToast('Expense recorded successfully!');
+      setTimeout(() => refreshData(), 300);
       return created;
     } catch (err) {
-      addToast(err.message || 'Failed to add expense', 'error');
+      addToast(err.message || 'Failed to record expense', 'error');
       throw err;
     }
   };
@@ -173,9 +213,11 @@ export const AppProvider = ({ children }) => {
   const handleUpdateExpense = async (id, expenseData) => {
     try {
       const updated = await api.updateExpense(id, expenseData);
-      setExpenses((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      setExpenses((prev) =>
+        dedupeList(prev.map((e) => (e.id === id ? { ...e, ...updated, id } : e)))
+      );
       addToast('Expense updated successfully!');
-      refreshData();
+      setTimeout(() => refreshData(), 300);
       return updated;
     } catch (err) {
       addToast(err.message || 'Failed to update expense', 'error');
@@ -186,21 +228,23 @@ export const AppProvider = ({ children }) => {
   const handleDeleteExpense = async (id) => {
     try {
       await api.deleteExpense(id);
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      setExpenses((prev) => dedupeList(prev.filter((e) => e.id !== id)));
       addToast('Expense deleted successfully!');
-      refreshData();
+      setTimeout(() => refreshData(), 300);
     } catch (err) {
       addToast(err.message || 'Failed to delete expense', 'error');
     }
   };
 
-  // Group Actions
+  // Group Actions with strict deduplication
   const handleCreateGroup = async (groupData) => {
     try {
       const created = await api.createGroup(groupData);
-      setGroups((prev) => [created, ...prev]);
+      if (created) {
+        setGroups((prev) => dedupeList([created, ...prev]));
+      }
       addToast('Group created successfully!');
-      refreshData();
+      setTimeout(() => refreshData(), 300);
       return created;
     } catch (err) {
       addToast(err.message || 'Failed to create group', 'error');
@@ -223,26 +267,32 @@ export const AppProvider = ({ children }) => {
     try {
       const settled = await api.settle(settlementId, paymentData);
       setSettlements((prev) =>
-        prev.map((s) =>
-          s.id === settlementId
-            ? {
-                ...s,
-                status: 'settled',
-                paymentMethod: paymentData.paymentMethod || 'Manual',
-                upiId: paymentData.upiId || '',
-                settledAt: new Date().toISOString(),
-              }
-            : s
+        dedupeList(
+          prev.map((s) =>
+            s.id === settlementId
+              ? {
+                  ...s,
+                  status: 'settled',
+                  paymentMethod: paymentData.paymentMethod || 'Manual',
+                  upiId: paymentData.upiId || '',
+                  settledAt: new Date().toISOString(),
+                }
+              : s
+          )
         )
       );
-      addToast(paymentData.paymentMethod === 'UPI' ? 'UPI Settlement recorded successfully!' : 'Settlement completed successfully!');
+      addToast(
+        paymentData.paymentMethod === 'UPI'
+          ? 'UPI Settlement recorded successfully!'
+          : 'Settlement completed successfully!'
+      );
       confetti({
         particleCount: 80,
         spread: 70,
         origin: { y: 0.6 },
         colors: ['#6366F1', '#06B6D4', '#8B5CF6', '#10B981'],
       });
-      refreshData();
+      setTimeout(() => refreshData(), 300);
       return settled;
     } catch (err) {
       addToast(err.message || 'Failed to complete settlement', 'error');
@@ -252,12 +302,12 @@ export const AppProvider = ({ children }) => {
   // Notification Actions
   const handleMarkAsRead = async (id) => {
     await api.markNotificationRead(id);
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setNotifications((prev) => dedupeList(prev.map((n) => (n.id === id ? { ...n, read: true } : n))));
   };
 
   const handleMarkAllAsRead = async () => {
     await api.markAllNotificationsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => dedupeList(prev.map((n) => ({ ...n, read: true }))));
     addToast('All notifications marked as read');
   };
 

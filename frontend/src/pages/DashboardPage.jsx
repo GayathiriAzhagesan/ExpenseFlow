@@ -73,12 +73,11 @@ export default function DashboardPage({ onNavigateRoute }) {
       if (s.status === 'settled') settled += s.amount;
     });
 
-    // Provide default figures if list is empty
     return {
-      totalExpenses: total || 5400,
-      youOwe: owe || 600,
-      youAreOwed: owed || 1200,
-      settledTotal: settled || 3600,
+      totalExpenses: total,
+      youOwe: owe,
+      youAreOwed: owed,
+      settledTotal: settled,
     };
   }, [expenses, settlements, currentUser]);
 
@@ -96,7 +95,7 @@ export default function DashboardPage({ onNavigateRoute }) {
     const counts = {};
     expenses.forEach((e) => {
       const cat = e.category || 'General';
-      counts[cat] = (counts[cat] || 0) + e.amount;
+      counts[cat] = (counts[cat] || 0) + (Number(e.amount) || 0);
     });
     if (Object.keys(counts).length === 0) {
       return [
@@ -109,7 +108,15 @@ export default function DashboardPage({ onNavigateRoute }) {
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [expenses]);
 
-  const recentExpenses = expenses.slice(0, 5);
+  const recentExpenses = useMemo(() => {
+    const map = new Map();
+    for (const exp of expenses) {
+      if (!exp) continue;
+      const key = exp.id || exp._id;
+      if (key && !map.has(key)) map.set(key, { ...exp, id: key });
+    }
+    return Array.from(map.values()).slice(0, 5);
+  }, [expenses]);
 
   return (
     <div className="space-y-8 pb-12">

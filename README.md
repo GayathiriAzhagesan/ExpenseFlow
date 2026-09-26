@@ -115,10 +115,13 @@ cd ExpenseFlow/backend
 # Copy environment template
 copy .env.example .env
 
-# Run the Go server (compiles and runs immediately)
+# Live Production Deployment
+The live backend server is deployed on: **`https://expenseflow-bl9s.onrender.com`**
+The real-time WebSocket hub is live on: **`wss://expenseflow-bl9s.onrender.com/api/ws`**
+
+# Optional: Run local Go server
 go run main.go
 ```
-The backend server will start on `http://localhost:8080`.
 
 ---
 
@@ -131,11 +134,10 @@ cd ExpenseFlow/frontend
 # Install dependencies (if not already installed)
 npm install --legacy-peer-deps
 
-# Start Vite dev server
+# Start Vite dev server (automatically connects to live cloud backend)
 npm run dev
 ```
-Open your browser and navigate to:
-👉 **`http://localhost:5173`**
+Open your browser and navigate to the application URL.
 
 ---
 

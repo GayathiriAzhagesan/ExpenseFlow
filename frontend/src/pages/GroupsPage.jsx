@@ -6,7 +6,15 @@ import { formatINR } from '../utils/formatters';
 import EmptyState from '../components/EmptyState';
 
 export default function GroupsPage({ onSelectGroup }) {
-  const { groups, setIsCreateGroupOpen, setIsAddExpenseOpen, setActiveGroupForExpense } = useApp();
+  const uniqueGroups = React.useMemo(() => {
+    const map = new Map();
+    for (const g of groups) {
+      if (!g) continue;
+      const key = g.id || g._id;
+      if (key && !map.has(key)) map.set(key, { ...g, id: key });
+    }
+    return Array.from(map.values());
+  }, [groups]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -31,14 +39,14 @@ export default function GroupsPage({ onSelectGroup }) {
       </div>
 
       {/* Groups Grid */}
-      {groups.length === 0 ? (
+      {uniqueGroups.length === 0 ? (
         <EmptyState
           type="groups"
           onAction={() => setIsCreateGroupOpen(true)}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map((group) => (
+          {uniqueGroups.map((group) => (
             <motion.div
               key={group.id}
               whileHover={{ y: -4 }}

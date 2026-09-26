@@ -24,8 +24,18 @@ export default function SettlementsPage() {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scanTargetSettlement, setScanTargetSettlement] = useState(null);
 
-  const pendingSettlements = settlements.filter((s) => s.status === 'pending');
-  const settledHistory = settlements.filter((s) => s.status === 'settled');
+  const uniqueSettlements = React.useMemo(() => {
+    const map = new Map();
+    for (const s of settlements) {
+      if (!s) continue;
+      const key = s.id || s._id;
+      if (key && !map.has(key)) map.set(key, { ...s, id: key });
+    }
+    return Array.from(map.values());
+  }, [settlements]);
+
+  const pendingSettlements = uniqueSettlements.filter((s) => s.status === 'pending');
+  const settledHistory = uniqueSettlements.filter((s) => s.status === 'settled');
 
   const openSettle = (s) => {
     setSelectedSettlement(s);

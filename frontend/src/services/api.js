@@ -6,7 +6,7 @@ import {
   initialUsers,
 } from '../data/mockData';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://expenseflow-bl9s.onrender.com/api';
 
 // Helper to get token
 const getAuthHeaders = () => {
@@ -37,7 +37,6 @@ async function request(endpoint, options = {}) {
     const data = await res.json();
     return data;
   } catch (err) {
-    // If backend isn't reachable, propagate network error so caller can fallback to local mock
     throw err;
   }
 }
@@ -51,23 +50,45 @@ const STORAGE_KEYS = {
   USER: 'expenseflow_user_v1',
 };
 
-// Initialize Local Storage if empty
+// Migration: Purge legacy mock data cache to eliminate duplicate entries
+const CACHE_VERSION_KEY = 'expenseflow_store_version';
+const CURRENT_VERSION = 'v2_live_render';
+
+if (typeof window !== 'undefined') {
+  try {
+    if (localStorage.getItem(CACHE_VERSION_KEY) !== CURRENT_VERSION) {
+      localStorage.removeItem(STORAGE_KEYS.EXPENSES);
+      localStorage.removeItem(STORAGE_KEYS.GROUPS);
+      localStorage.removeItem(STORAGE_KEYS.SETTLEMENTS);
+      localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
+      const token = localStorage.getItem('expenseflow_token');
+      if (token === 'mock_jwt_token_local_dev') {
+        localStorage.removeItem('expenseflow_token');
+      }
+      localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
+    }
+  } catch (e) {
+    console.warn('Storage purge notice:', e);
+  }
+}
+
+// Deduplication helper guarantees each item only exists once by its id or _id
+export const dedupeList = (items = []) => {
+  if (!Array.isArray(items)) return [];
+  const map = new Map();
+  for (const item of items) {
+    if (!item) continue;
+    const key = item.id || item._id;
+    if (key) {
+      map.set(key, { ...item, id: key });
+    }
+  }
+  return Array.from(map.values());
+};
+
+// Safe no-op initialization to prevent re-populating duplicate mock data
 export const initLocalStore = () => {
-  if (!localStorage.getItem(STORAGE_KEYS.EXPENSES)) {
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.GROUPS)) {
-    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(initialGroups));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.SETTLEMENTS)) {
-    localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(initialSettlements));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS)) {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(initialNotifications));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.USER)) {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(initialUsers[0]));
-  }
+  // No-op: We load real live data directly from the deployed backend
 };
 
 // ======================== API Methods ========================
@@ -85,8 +106,8 @@ export const api = {
         localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.data.user));
       }
       return res.data;
-    } catch {
-      // Local fallback: authenticate Gayathiri or first matching seed user
+    } catch (err) {
+      // If deployed backend is temporarily unreachable, fallback to user identity
       const user = initialUsers.find((u) => u.email.toLowerCase() === email.toLowerCase()) || {
         id: 'u1',
         name: 'Gayathiri',
@@ -145,26 +166,27 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     try {
       const res = await request(`/expenses${query ? `?${query}` : ''}`);
-      return res.data;
+      const list = dedupeList(res.data || []);
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(list));
+      return list;
     } catch {
-      initLocalStore();
       let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
       if (params.category && params.category !== 'all') {
-        list = list.filter((e) => e.category.toLowerCase() === params.category.toLowerCase());
+        list = list.filter((e) => e.category?.toLowerCase() === params.category.toLowerCase());
       }
       if (params.splitType && params.splitType !== 'all') {
-        list = list.filter((e) => e.splitType.toLowerCase() === params.splitType.toLowerCase());
+        list = list.filter((e) => e.splitType?.toLowerCase() === params.splitType.toLowerCase());
       }
       if (params.search) {
         const q = params.search.toLowerCase();
         list = list.filter(
           (e) =>
-            e.description.toLowerCase().includes(q) ||
-            e.paidBy.name.toLowerCase().includes(q) ||
-            e.category.toLowerCase().includes(q)
+            e.description?.toLowerCase().includes(q) ||
+            e.paidBy?.name?.toLowerCase().includes(q) ||
+            e.category?.toLowerCase().includes(q)
         );
       }
-      return list;
+      return dedupeList(list);
     }
   },
 
@@ -174,16 +196,18 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(expenseData),
       });
-      return res.data;
+      const created = res.data;
+      const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(dedupeList([created, ...list])));
+      return created;
     } catch {
-      initLocalStore();
       const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
       const newExp = {
         ...expenseData,
         id: 'e_' + Date.now(),
         createdAt: new Date().toISOString(),
       };
-      const updated = [newExp, ...list];
+      const updated = dedupeList([newExp, ...list]);
       localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
       return newExp;
     }
@@ -197,10 +221,9 @@ export const api = {
       });
       return res.data;
     } catch {
-      initLocalStore();
       const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
       const updated = list.map((e) => (e.id === id ? { ...e, ...expenseData, id } : e));
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(dedupeList(updated)));
       return { ...expenseData, id };
     }
   },
@@ -210,9 +233,11 @@ export const api = {
       const res = await request(`/expenses/${id}`, {
         method: 'DELETE',
       });
+      const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+      const updated = list.filter((e) => e.id !== id);
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
       return res.data;
     } catch {
-      initLocalStore();
       const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
       const updated = list.filter((e) => e.id !== id);
       localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
@@ -224,10 +249,12 @@ export const api = {
   async getGroups() {
     try {
       const res = await request('/groups');
-      return res.data;
+      const list = dedupeList(res.data || []);
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(list));
+      return list;
     } catch {
-      initLocalStore();
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
+      const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
+      return dedupeList(groups);
     }
   },
 
@@ -236,7 +263,6 @@ export const api = {
       const res = await request(`/groups/${id}`);
       return res.data;
     } catch {
-      initLocalStore();
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
       return groups.find((g) => g.id === id) || null;
     }
@@ -248,9 +274,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(groupData),
       });
-      return res.data;
+      const created = res.data;
+      const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(dedupeList([created, ...groups])));
+      return created;
     } catch {
-      initLocalStore();
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
       const newGroup = {
         ...groupData,
@@ -259,7 +287,7 @@ export const api = {
         totalExpenses: 0,
         createdAt: new Date().toISOString(),
       };
-      const updated = [newGroup, ...groups];
+      const updated = dedupeList([newGroup, ...groups]);
       localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(updated));
       return newGroup;
     }
@@ -273,7 +301,6 @@ export const api = {
       });
       return res.data;
     } catch {
-      initLocalStore();
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
       const updated = groups.map((g) => {
         if (g.id === groupId) {
@@ -287,7 +314,7 @@ export const api = {
           };
           return {
             ...g,
-            members: [...(g.members || []), newM],
+            members: dedupeList([...(g.members || []), newM]),
             membersCount: (g.members?.length || 0) + 1,
           };
         }
@@ -302,10 +329,12 @@ export const api = {
   async getSettlements() {
     try {
       const res = await request('/settlements');
-      return res.data;
+      const list = dedupeList(res.data || []);
+      localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(list));
+      return list;
     } catch {
-      initLocalStore();
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTLEMENTS) || '[]');
+      const stm = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTLEMENTS) || '[]');
+      return dedupeList(stm);
     }
   },
 
@@ -317,7 +346,6 @@ export const api = {
       });
       return res.data;
     } catch {
-      initLocalStore();
       const settlements = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTLEMENTS) || '[]');
       const updated = settlements.map((s) =>
         s.id === id
@@ -343,9 +371,9 @@ export const api = {
     } catch {
       return {
         totalExpenses: 5400,
-        youOwe: 600,
-        youAreOwed: 1200,
-        settled: 3600,
+        youOwe: 750,
+        youAreOwed: 1800,
+        settled: 800,
         recentCount: 5,
       };
     }
@@ -373,9 +401,9 @@ export const api = {
       return res.data;
     } catch {
       return [
-        { category: 'Food & Dining', amount: 2400, count: 4 },
-        { category: 'Entertainment', amount: 1200, count: 2 },
-        { category: 'Transportation', amount: 800, count: 2 },
+        { category: 'Food & Dining', amount: 2400, count: 2 },
+        { category: 'Entertainment', amount: 1200, count: 1 },
+        { category: 'Transportation', amount: 800, count: 1 },
         { category: 'Groceries', amount: 1000, count: 1 },
       ];
     }
@@ -385,10 +413,12 @@ export const api = {
   async getNotifications() {
     try {
       const res = await request('/notifications');
-      return res.data;
+      const list = dedupeList(res.data || []);
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+      return list;
     } catch {
-      initLocalStore();
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || '[]');
+      const notifs = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || '[]');
+      return dedupeList(notifs);
     }
   },
 
@@ -396,7 +426,6 @@ export const api = {
     try {
       await request(`/notifications/${id}/read`, { method: 'PUT' });
     } catch {
-      initLocalStore();
       const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || '[]');
       const updated = list.map((n) => (n.id === id ? { ...n, read: true } : n));
       localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
@@ -407,7 +436,6 @@ export const api = {
     try {
       await request('/notifications/read-all', { method: 'PUT' });
     } catch {
-      initLocalStore();
       const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || '[]');
       const updated = list.map((n) => ({ ...n, read: true }));
       localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));

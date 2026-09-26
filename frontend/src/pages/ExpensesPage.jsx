@@ -44,21 +44,29 @@ export default function ExpensesPage() {
   const [sortBy, setSortBy] = useState('date-desc'); // date-desc, date-asc, amount-desc, amount-asc
   const [viewingExpense, setViewingExpense] = useState(null);
 
-  // Filtered & Sorted expenses
+  // Filtered & Sorted expenses with strict deduplication
   const filteredExpenses = useMemo(() => {
-    let result = [...expenses];
+    const map = new Map();
+    for (const exp of expenses) {
+      if (!exp) continue;
+      const key = exp.id || exp._id;
+      if (key && !map.has(key)) {
+        map.set(key, { ...exp, id: key });
+      }
+    }
+    let result = Array.from(map.values());
 
     // Category
     if (selectedCategory && selectedCategory !== 'all' && selectedCategory !== 'All') {
       result = result.filter(
-        (e) => e.category.toLowerCase() === selectedCategory.toLowerCase()
+        (e) => e.category?.toLowerCase() === selectedCategory.toLowerCase()
       );
     }
 
     // Split Type
     if (selectedSplitType && selectedSplitType !== 'all') {
       result = result.filter(
-        (e) => e.splitType.toLowerCase() === selectedSplitType.toLowerCase()
+        (e) => e.splitType?.toLowerCase() === selectedSplitType.toLowerCase()
       );
     }
 
@@ -67,18 +75,18 @@ export default function ExpensesPage() {
       const q = searchQuery.toLowerCase();
       result = result.filter(
         (e) =>
-          e.description.toLowerCase().includes(q) ||
+          e.description?.toLowerCase().includes(q) ||
           e.paidBy?.name?.toLowerCase().includes(q) ||
-          e.category.toLowerCase().includes(q)
+          e.category?.toLowerCase().includes(q)
       );
     }
 
     // Sorting
     result.sort((a, b) => {
-      if (sortBy === 'date-desc') return new Date(b.date) - new Date(a.date);
-      if (sortBy === 'date-asc') return new Date(a.date) - new Date(b.date);
-      if (sortBy === 'amount-desc') return b.amount - a.amount;
-      if (sortBy === 'amount-asc') return a.amount - b.amount;
+      if (sortBy === 'date-desc') return new Date(b.date || 0) - new Date(a.date || 0);
+      if (sortBy === 'date-asc') return new Date(a.date || 0) - new Date(b.date || 0);
+      if (sortBy === 'amount-desc') return (b.amount || 0) - (a.amount || 0);
+      if (sortBy === 'amount-asc') return (a.amount || 0) - (b.amount || 0);
       return 0;
     });
 

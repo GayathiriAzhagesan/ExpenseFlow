@@ -54,7 +54,7 @@ func LoadConfig() *Config {
 
 	mongoURI := os.Getenv("MONGODB_URI")
 	if mongoURI == "" {
-		mongoURI = "mongodb://localhost:27017"
+		mongoURI = "mongodb+srv://gayathrig12001_db_user:Gayathiri1719@live-poll-cluster.rebwgqc.mongodb.net/expenseflow?retryWrites=true&w=majority&appName=live-poll-cluster"
 	}
 
 	dbName := os.Getenv("DB_NAME")
@@ -69,7 +69,7 @@ func LoadConfig() *Config {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
+		frontendURL = "*"
 	}
 
 	return &Config{

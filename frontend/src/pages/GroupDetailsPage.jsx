@@ -31,7 +31,13 @@ export default function GroupDetailsPage({ groupId, onBack }) {
   }, [groups, groupId]);
 
   const groupExpenses = useMemo(() => {
-    return expenses.filter((e) => e.groupId === group?.id);
+    const map = new Map();
+    for (const e of expenses) {
+      if (!e || e.groupId !== group?.id) continue;
+      const key = e.id || e._id;
+      if (key && !map.has(key)) map.set(key, { ...e, id: key });
+    }
+    return Array.from(map.values());
   }, [expenses, group]);
 
   // Balances as specified in requirements:
