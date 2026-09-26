@@ -81,15 +81,34 @@ export default function DashboardPage({ onNavigateRoute }) {
     };
   }, [expenses, settlements, currentUser]);
 
-  // Chart data
-  const monthlyData = [
-    { month: 'Nov', amount: 3200 },
-    { month: 'Dec', amount: 4800 },
-    { month: 'Jan', amount: 4100 },
-    { month: 'Feb', amount: 5200 },
-    { month: 'Mar', amount: 5400 },
-    { month: 'Apr', amount: 2300 },
-  ];
+  // Chart data with dynamic unique data points
+  const monthlyData = useMemo(() => {
+    const monthNames = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
+    const map = new Map();
+    monthNames.forEach((m) => map.set(m, 0));
+
+    expenses.forEach((e) => {
+      if (!e.date) return;
+      const d = new Date(e.date);
+      const mName = d.toLocaleString('en-US', { month: 'short' });
+      if (map.has(mName)) {
+        map.set(mName, map.get(mName) + (Number(e.amount) || 0));
+      }
+    });
+
+    const hasValues = Array.from(map.values()).some((v) => v > 0);
+    if (!hasValues) {
+      return [
+        { month: 'Nov', amount: 3200 },
+        { month: 'Dec', amount: 4800 },
+        { month: 'Jan', amount: 4100 },
+        { month: 'Feb', amount: 5200 },
+        { month: 'Mar', amount: 5400 },
+        { month: 'Apr', amount: 2300 },
+      ];
+    }
+    return Array.from(map.entries()).map(([month, amount]) => ({ month, amount }));
+  }, [expenses]);
 
   const categoryBreakdown = useMemo(() => {
     const counts = {};
@@ -102,7 +121,7 @@ export default function DashboardPage({ onNavigateRoute }) {
         { name: 'Food & Dining', value: 2400 },
         { name: 'Entertainment', value: 1200 },
         { name: 'Transportation', value: 800 },
-        { name: 'Groceries', value: 1000 },
+        { name: 'Shopping', value: 1000 },
       ];
     }
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
@@ -207,7 +226,7 @@ export default function DashboardPage({ onNavigateRoute }) {
             {formatINR(youOwe)}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-            To 1 member (Divya)
+            {youOwe > 0 ? 'Pending repayment' : 'All debts settled'}
           </p>
         </motion.div>
 
@@ -230,7 +249,7 @@ export default function DashboardPage({ onNavigateRoute }) {
             {formatINR(youAreOwed)}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-            From Priya & Anu
+            {youAreOwed > 0 ? 'Pending collection' : 'No pending balances'}
           </p>
         </motion.div>
 

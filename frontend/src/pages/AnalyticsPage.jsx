@@ -38,8 +38,7 @@ export default function AnalyticsPage() {
     { name: 'Food & Dining', amount: 2400 },
     { name: 'Entertainment', amount: 1200 },
     { name: 'Transportation', amount: 800 },
-    { name: 'Groceries', amount: 1000 },
-    { name: 'Utilities', amount: 600 },
+    { name: 'Shopping', amount: 1000 },
   ];
 
   const groupSpendingData = [
@@ -49,10 +48,10 @@ export default function AnalyticsPage() {
   ];
 
   const contributionData = [
-    { member: 'Gayathiri', paid: 2400, share: 1100 },
-    { member: 'Priya', paid: 1200, share: 1700 },
-    { member: 'Anu', paid: 800, share: 1100 },
-    { member: 'Divya', paid: 1000, share: 1500 },
+    { member: 'Gayathiri', paid: 2400, share: 1350 },
+    { member: 'Priya', paid: 1200, share: 1350 },
+    { member: 'Anu', paid: 800, share: 1350 },
+    { member: 'Divya', paid: 1000, share: 1350 },
   ];
 
   return (

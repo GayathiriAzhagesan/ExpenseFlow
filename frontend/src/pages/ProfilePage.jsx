@@ -43,10 +43,6 @@ export default function ProfilePage() {
       if (s.toUser?.id === currentUser?.id) amountReceived += s.amount;
     }
   });
-
-  if (amountPaid === 0) amountPaid = 5400;
-  if (amountReceived === 0) amountReceived = 1600;
-
   const handleSave = (e) => {
     e.preventDefault();
     updateProfile({ name, phone, avatar });

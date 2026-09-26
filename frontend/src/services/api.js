@@ -167,10 +167,14 @@ export const api = {
     try {
       const res = await request(`/expenses${query ? `?${query}` : ''}`);
       const list = dedupeList(res.data || []);
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(list));
-      return list;
+      if (list.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(list));
+        return list;
+      }
+      return dedupeList(initialExpenses);
     } catch {
       let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+      if (list.length === 0) list = [...initialExpenses];
       if (params.category && params.category !== 'all') {
         list = list.filter((e) => e.category?.toLowerCase() === params.category.toLowerCase());
       }
@@ -250,11 +254,14 @@ export const api = {
     try {
       const res = await request('/groups');
       const list = dedupeList(res.data || []);
-      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(list));
-      return list;
+      if (list.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(list));
+        return list;
+      }
+      return dedupeList(initialGroups);
     } catch {
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
-      return dedupeList(groups);
+      return dedupeList(groups.length > 0 ? groups : initialGroups);
     }
   },
 
@@ -330,11 +337,14 @@ export const api = {
     try {
       const res = await request('/settlements');
       const list = dedupeList(res.data || []);
-      localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(list));
-      return list;
+      if (list.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(list));
+        return list;
+      }
+      return dedupeList(initialSettlements);
     } catch {
       const stm = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTLEMENTS) || '[]');
-      return dedupeList(stm);
+      return dedupeList(stm.length > 0 ? stm : initialSettlements);
     }
   },
 
@@ -404,7 +414,7 @@ export const api = {
         { category: 'Food & Dining', amount: 2400, count: 2 },
         { category: 'Entertainment', amount: 1200, count: 1 },
         { category: 'Transportation', amount: 800, count: 1 },
-        { category: 'Groceries', amount: 1000, count: 1 },
+        { category: 'Shopping', amount: 1000, count: 1 },
       ];
     }
   },
@@ -414,11 +424,14 @@ export const api = {
     try {
       const res = await request('/notifications');
       const list = dedupeList(res.data || []);
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
-      return list;
+      if (list.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+        return list;
+      }
+      return dedupeList(initialNotifications);
     } catch {
       const notifs = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || '[]');
-      return dedupeList(notifs);
+      return dedupeList(notifs.length > 0 ? notifs : initialNotifications);
     }
   },
 
