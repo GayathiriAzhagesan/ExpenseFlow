@@ -178,30 +178,35 @@ export const api = {
     try {
       const res = await request(`/expenses${query ? `?${query}` : ''}`);
       const list = dedupeList(res.data || []);
-      if (list.length > 0) {
+      if (Array.isArray(res.data)) {
         localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(list));
         return list;
       }
-      return dedupeList(initialExpenses);
+      return [];
     } catch {
-      let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
-      if (list.length === 0) list = [...initialExpenses];
-      if (params.category && params.category !== 'all') {
-        list = list.filter((e) => e.category?.toLowerCase() === params.category.toLowerCase());
+      try {
+        const stored = localStorage.getItem(STORAGE_KEYS.EXPENSES);
+        let list = stored ? JSON.parse(stored) : [];
+        if (!Array.isArray(list)) list = [];
+        if (params.category && params.category !== 'all') {
+          list = list.filter((e) => e.category?.toLowerCase() === params.category.toLowerCase());
+        }
+        if (params.splitType && params.splitType !== 'all') {
+          list = list.filter((e) => e.splitType?.toLowerCase() === params.splitType.toLowerCase());
+        }
+        if (params.search) {
+          const q = params.search.toLowerCase();
+          list = list.filter(
+            (e) =>
+              e.description?.toLowerCase().includes(q) ||
+              e.paidBy?.name?.toLowerCase().includes(q) ||
+              e.category?.toLowerCase().includes(q)
+          );
+        }
+        return dedupeList(list);
+      } catch {
+        return [];
       }
-      if (params.splitType && params.splitType !== 'all') {
-        list = list.filter((e) => e.splitType?.toLowerCase() === params.splitType.toLowerCase());
-      }
-      if (params.search) {
-        const q = params.search.toLowerCase();
-        list = list.filter(
-          (e) =>
-            e.description?.toLowerCase().includes(q) ||
-            e.paidBy?.name?.toLowerCase().includes(q) ||
-            e.category?.toLowerCase().includes(q)
-        );
-      }
-      return dedupeList(list);
     }
   },
 

@@ -81,7 +81,7 @@ export const AppProvider = ({ children }) => {
     try {
       setLoading(true);
       const [expData, grpData, stmData, notifData] = await Promise.all([
-        api.getExpenses({ search: searchQuery, category: selectedCategory, splitType: selectedSplitType }).catch(() => []),
+        api.getExpenses().catch(() => []),
         api.getGroups().catch(() => []),
         api.getSettlements().catch(() => []),
         api.getNotifications().catch(() => []),
@@ -97,7 +97,7 @@ export const AppProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, selectedCategory, selectedSplitType]);
+  }, []);
 
   // Initial authentication & data load
   useEffect(() => {

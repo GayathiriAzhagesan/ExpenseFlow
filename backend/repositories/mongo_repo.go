@@ -178,20 +178,20 @@ func (r *MongoRepository) GetAllExpenses(userID, category, splitType, search str
 	return list, nil
 }
 
+func buildIDFilter(id string) bson.M {
+	if objID, err := primitive.ObjectIDFromHex(id); err == nil {
+		return bson.M{"$or": []bson.M{{"_id": objID}, {"_id": id}, {"id": id}}}
+	}
+	return bson.M{"$or": []bson.M{{"_id": id}, {"id": id}}}
+}
+
 func (r *MongoRepository) GetExpenseByID(id string) (*models.Expense, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(id)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": id}}}
-	} else {
-		filter = bson.M{"id": id}
-	}
-
+	filter := buildIDFilter(id)
 	var exp models.Expense
-	err = r.expenses.FindOne(ctx, filter).Decode(&exp)
+	err := r.expenses.FindOne(ctx, filter).Decode(&exp)
 	if err != nil {
 		return nil, err
 	}
@@ -216,16 +216,9 @@ func (r *MongoRepository) UpdateExpense(exp *models.Expense) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(exp.ID)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": exp.ID}}}
-	} else {
-		filter = bson.M{"id": exp.ID}
-	}
-
+	filter := buildIDFilter(exp.ID)
 	update := bson.M{"$set": exp}
-	_, err = r.expenses.UpdateOne(ctx, filter, update)
+	_, err := r.expenses.UpdateOne(ctx, filter, update)
 	return err
 }
 
@@ -233,15 +226,8 @@ func (r *MongoRepository) DeleteExpense(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(id)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": id}}}
-	} else {
-		filter = bson.M{"id": id}
-	}
-
-	_, err = r.expenses.DeleteOne(ctx, filter)
+	filter := buildIDFilter(id)
+	_, err := r.expenses.DeleteOne(ctx, filter)
 	return err
 }
 
@@ -267,16 +253,9 @@ func (r *MongoRepository) GetGroupByID(id string) (*models.Group, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(id)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": id}}}
-	} else {
-		filter = bson.M{"id": id}
-	}
-
+	filter := buildIDFilter(id)
 	var grp models.Group
-	err = r.groups.FindOne(ctx, filter).Decode(&grp)
+	err := r.groups.FindOne(ctx, filter).Decode(&grp)
 	if err != nil {
 		return nil, err
 	}
@@ -301,16 +280,9 @@ func (r *MongoRepository) UpdateGroup(group *models.Group) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(group.ID)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": group.ID}}}
-	} else {
-		filter = bson.M{"id": group.ID}
-	}
-
+	filter := buildIDFilter(group.ID)
 	update := bson.M{"$set": group}
-	_, err = r.groups.UpdateOne(ctx, filter, update)
+	_, err := r.groups.UpdateOne(ctx, filter, update)
 	return err
 }
 
@@ -318,15 +290,8 @@ func (r *MongoRepository) DeleteGroup(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(id)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": id}}}
-	} else {
-		filter = bson.M{"id": id}
-	}
-
-	_, err = r.groups.DeleteOne(ctx, filter)
+	filter := buildIDFilter(id)
+	_, err := r.groups.DeleteOne(ctx, filter)
 	return err
 }
 
@@ -334,19 +299,13 @@ func (r *MongoRepository) AddMemberToGroup(groupID string, member models.GroupMe
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(groupID)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": groupID}}}
-	} else {
-		filter = bson.M{"id": groupID}
-	}
+	filter := buildIDFilter(groupID)
 
 	update := bson.M{
 		"$push": bson.M{"members": member},
 		"$set":  bson.M{"updatedAt": time.Now()},
 	}
-	_, err = r.groups.UpdateOne(ctx, filter, update)
+	_, err := r.groups.UpdateOne(ctx, filter, update)
 	return err
 }
 
@@ -354,19 +313,13 @@ func (r *MongoRepository) RemoveMemberFromGroup(groupID, memberID string) error 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(groupID)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": groupID}}}
-	} else {
-		filter = bson.M{"id": groupID}
-	}
+	filter := buildIDFilter(groupID)
 
 	update := bson.M{
 		"$pull": bson.M{"members": bson.M{"id": memberID}},
 		"$set":  bson.M{"updatedAt": time.Now()},
 	}
-	_, err = r.groups.UpdateOne(ctx, filter, update)
+	_, err := r.groups.UpdateOne(ctx, filter, update)
 	return err
 }
 
@@ -397,16 +350,9 @@ func (r *MongoRepository) GetSettlementByID(id string) (*models.Settlement, erro
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(id)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": id}}}
-	} else {
-		filter = bson.M{"id": id}
-	}
-
+	filter := buildIDFilter(id)
 	var st models.Settlement
-	err = r.settlements.FindOne(ctx, filter).Decode(&st)
+	err := r.settlements.FindOne(ctx, filter).Decode(&st)
 	if err != nil {
 		return nil, err
 	}
@@ -431,16 +377,9 @@ func (r *MongoRepository) UpdateSettlement(settlement *models.Settlement) error 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	objID, err := primitive.ObjectIDFromHex(settlement.ID)
-	var filter bson.M
-	if err == nil {
-		filter = bson.M{"$or": []bson.M{{"_id": objID}, {"id": settlement.ID}}}
-	} else {
-		filter = bson.M{"id": settlement.ID}
-	}
-
+	filter := buildIDFilter(settlement.ID)
 	update := bson.M{"$set": settlement}
-	_, err = r.settlements.UpdateOne(ctx, filter, update)
+	_, err := r.settlements.UpdateOne(ctx, filter, update)
 	return err
 }
 

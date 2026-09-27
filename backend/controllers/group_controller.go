@@ -34,6 +34,20 @@ func (gc *GroupController) GetAll(c *gin.Context) {
 		groups = []models.Group{}
 	}
 
+	// Calculate live group total expenses from all recorded expenses in database
+	allExpenses, _ := gc.repo.GetAllExpenses("", "", "", "")
+	groupExpenseMap := make(map[string]float64)
+	for _, exp := range allExpenses {
+		if exp.GroupID != "" {
+			groupExpenseMap[exp.GroupID] += exp.Amount
+		}
+	}
+	for i := range groups {
+		if total, exists := groupExpenseMap[groups[i].ID]; exists {
+			groups[i].TotalExpenses = total
+		}
+	}
+
 	utils.SuccessResponse(c, http.StatusOK, "Groups retrieved", groups)
 }
 
@@ -44,6 +58,19 @@ func (gc *GroupController) GetByID(c *gin.Context) {
 		utils.ErrorResponse(c, http.StatusNotFound, "Group not found")
 		return
 	}
+
+	// Calculate live group total expenses from real database expenses
+	allExpenses, _ := gc.repo.GetAllExpenses("", "", "", "")
+	var total float64
+	for _, exp := range allExpenses {
+		if exp.GroupID == id {
+			total += exp.Amount
+		}
+	}
+	if total > 0 {
+		grp.TotalExpenses = total
+	}
+
 	utils.SuccessResponse(c, http.StatusOK, "Group details", grp)
 }
 

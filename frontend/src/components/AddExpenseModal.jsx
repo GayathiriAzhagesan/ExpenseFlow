@@ -211,7 +211,7 @@ export default function AddExpenseModal() {
       splitType,
       splits,
       groupId: groupId || undefined,
-      groupName: safeGroups.find((g) => g?.id === groupId)?.name || undefined,
+      groupName: safeGroups.find((g) => g?.id === groupId || g?._id === groupId)?.name || undefined,
     };
 
     try {
@@ -354,11 +354,14 @@ export default function AddExpenseModal() {
                 >
                   <option value="">No Group (Direct split)</option>
                   {Array.isArray(safeGroups) &&
-                    safeGroups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
+                    safeGroups.map((g) => {
+                      const gid = g?.id || g?._id;
+                      return (
+                        <option key={gid} value={gid}>
+                          {g.name}
+                        </option>
+                      );
+                    })}
                 </select>
               </div>
 

@@ -36,12 +36,22 @@ export default function GroupDetailsPage({ groupId, onBack }) {
   const groupExpenses = useMemo(() => {
     const map = new Map();
     for (const e of expenses) {
-      if (!e || e.groupId !== group?.id) continue;
-      const key = e.id || e._id;
-      if (key && !map.has(key)) map.set(key, { ...e, id: key });
+      if (!e) continue;
+      const expGroupId = e.groupId || e.group_id || (typeof e.group === 'object' ? e.group?.id : e.group);
+      if (expGroupId && (expGroupId === group?.id || expGroupId === group?._id)) {
+        const key = e.id || e._id;
+        if (key && !map.has(key)) map.set(key, { ...e, id: key });
+      }
     }
     return Array.from(map.values());
   }, [expenses, group]);
+
+  const groupTotalPool = useMemo(() => {
+    if (groupExpenses.length > 0) {
+      return groupExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    }
+    return Number(group?.totalExpenses) || 0;
+  }, [groupExpenses, group]);
 
   // Balances as specified in requirements:
   // Priya owes Gayathiri ₹500
@@ -153,19 +163,19 @@ export default function GroupDetailsPage({ groupId, onBack }) {
           <div>
             <span className="text-[11px] text-slate-400 font-semibold uppercase">Total Pool</span>
             <p className="text-xl font-black text-slate-900 dark:text-white">
-              {formatINR(group.totalExpenses || 5400)}
+              {formatINR(groupTotalPool)}
             </p>
           </div>
           <div>
             <span className="text-[11px] text-slate-400 font-semibold uppercase">Members</span>
             <p className="text-xl font-black text-indigo-400">
-              {group.members?.length || 4} Active
+              {group.members?.length || 0} Active
             </p>
           </div>
           <div>
             <span className="text-[11px] text-slate-400 font-semibold uppercase">Expenses</span>
             <p className="text-xl font-black text-cyan-400">
-              {groupExpenses.length || 5} Records
+              {groupExpenses.length} Records
             </p>
           </div>
           <div>
