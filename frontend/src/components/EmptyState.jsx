@@ -31,7 +31,7 @@ export default function EmptyState({
       action: '+ Add Expense',
     },
     groups: {
-      title: 'No groups created',
+      title: 'No groups yet',
       desc: 'Create a group for your trip, housemates, or outings to easily split balances.',
       action: '+ Create Group',
     },

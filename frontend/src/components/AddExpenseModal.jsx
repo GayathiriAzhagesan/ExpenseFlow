@@ -27,6 +27,8 @@ export default function AddExpenseModal() {
     activeGroupForExpense,
   } = useApp();
 
+  const safeGroups = Array.isArray(groups) ? groups : [];
+
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Food & Dining');
@@ -209,7 +211,7 @@ export default function AddExpenseModal() {
       splitType,
       splits,
       groupId: groupId || undefined,
-      groupName: groups.find((g) => g.id === groupId)?.name || undefined,
+      groupName: safeGroups.find((g) => g?.id === groupId)?.name || undefined,
     };
 
     try {
@@ -351,11 +353,12 @@ export default function AddExpenseModal() {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 >
                   <option value="">No Group (Direct split)</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
+                  {Array.isArray(safeGroups) &&
+                    safeGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 

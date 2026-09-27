@@ -31,12 +31,19 @@ async function request(endpoint, options = {}) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.message || `Request failed with status ${res.status}`);
+      const errorMsg = errData.message || `Request to ${endpoint} failed with status ${res.status}`;
+      if (import.meta.env.DEV) {
+        console.warn(`[API Response Failed] ${options.method || 'GET'} ${url} -> Status: ${res.status}:`, errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     const data = await res.json();
     return data;
   } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn(`[API Network / Fetch Failed] ${options.method || 'GET'} ${url}:`, err.message || err);
+    }
     throw err;
   }
 }
@@ -253,25 +260,37 @@ export const api = {
   async getGroups() {
     try {
       const res = await request('/groups');
-      const list = dedupeList(res.data || []);
-      if (list.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(list));
+      const list = dedupeList(res?.data || []);
+      if (Array.isArray(list)) {
+        if (list.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(list));
+        }
         return list;
       }
-      return dedupeList(initialGroups);
-    } catch {
-      const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
-      return dedupeList(groups.length > 0 ? groups : initialGroups);
+      return [];
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('[ExpenseFlow /groups API Error] Failed to fetch groups from server:', err?.message || err);
+      }
+      return [];
     }
   },
 
   async getGroup(id) {
     try {
       const res = await request(`/groups/${id}`);
-      return res.data;
+      return res?.data || null;
     } catch {
-      const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
-      return groups.find((g) => g.id === id) || null;
+      try {
+        const stored = localStorage.getItem(STORAGE_KEYS.GROUPS);
+        const groups = stored ? JSON.parse(stored) : [];
+        if (Array.isArray(groups)) {
+          return groups.find((g) => g?.id === id) || null;
+        }
+      } catch {
+        // ignore
+      }
+      return null;
     }
   },
 
@@ -283,18 +302,20 @@ export const api = {
       });
       const created = res.data;
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
-      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(dedupeList([created, ...groups])));
+      const safeGroups = Array.isArray(groups) ? groups : [];
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(dedupeList([created, ...safeGroups])));
       return created;
     } catch {
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
+      const safeGroups = Array.isArray(groups) ? groups : [];
       const newGroup = {
         ...groupData,
         id: 'g_' + Date.now(),
-        membersCount: groupData.members?.length || 1,
+        membersCount: Array.isArray(groupData?.members) ? groupData.members.length : 1,
         totalExpenses: 0,
         createdAt: new Date().toISOString(),
       };
-      const updated = dedupeList([newGroup, ...groups]);
+      const updated = dedupeList([newGroup, ...safeGroups]);
       localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(updated));
       return newGroup;
     }
@@ -309,7 +330,8 @@ export const api = {
       return res.data;
     } catch {
       const groups = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS) || '[]');
-      const updated = groups.map((g) => {
+      const safeGroups = Array.isArray(groups) ? groups : [];
+      const updated = safeGroups.map((g) => {
         if (g.id === groupId) {
           const newM = {
             id: 'u_' + Date.now(),
@@ -319,10 +341,11 @@ export const api = {
             role: 'member',
             netOwe: 0,
           };
+          const currentMembers = Array.isArray(g.members) ? g.members : [];
           return {
             ...g,
-            members: dedupeList([...(g.members || []), newM]),
-            membersCount: (g.members?.length || 0) + 1,
+            members: dedupeList([...currentMembers, newM]),
+            membersCount: currentMembers.length + 1,
           };
         }
         return g;

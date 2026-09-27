@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatINR, formatDate, getCategoryMeta } from '../utils/formatters';
+import EmptyState from '../components/EmptyState';
 
 export default function GroupDetailsPage({ groupId, onBack }) {
   const {
@@ -26,9 +27,11 @@ export default function GroupDetailsPage({ groupId, onBack }) {
   const [memberName, setMemberName] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
 
+  const safeGroups = Array.isArray(groups) ? groups : [];
+
   const group = useMemo(() => {
-    return groups.find((g) => g.id === groupId) || groups[0];
-  }, [groups, groupId]);
+    return safeGroups.find((g) => g?.id === groupId) || safeGroups[0] || null;
+  }, [safeGroups, groupId]);
 
   const groupExpenses = useMemo(() => {
     const map = new Map();
@@ -64,7 +67,26 @@ export default function GroupDetailsPage({ groupId, onBack }) {
     setIsAddMemberOpen(false);
   };
 
-  if (!group) return null;
+  if (!group) {
+    return (
+      <div className="space-y-6 pb-12">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Groups</span>
+        </button>
+        <EmptyState
+          type="groups"
+          title="No groups yet"
+          description="Create or select a group to view its shared expenses and settlements."
+          actionLabel="+ View All Groups"
+          onAction={onBack}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">

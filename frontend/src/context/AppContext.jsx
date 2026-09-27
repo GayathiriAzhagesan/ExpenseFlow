@@ -81,18 +81,19 @@ export const AppProvider = ({ children }) => {
     try {
       setLoading(true);
       const [expData, grpData, stmData, notifData] = await Promise.all([
-        api.getExpenses({ search: searchQuery, category: selectedCategory, splitType: selectedSplitType }),
-        api.getGroups(),
-        api.getSettlements(),
-        api.getNotifications(),
+        api.getExpenses({ search: searchQuery, category: selectedCategory, splitType: selectedSplitType }).catch(() => []),
+        api.getGroups().catch(() => []),
+        api.getSettlements().catch(() => []),
+        api.getNotifications().catch(() => []),
       ]);
 
-      setExpenses(dedupeList(expData || []));
-      setGroups(dedupeList(grpData || []));
-      setSettlements(dedupeList(stmData || []));
-      setNotifications(dedupeList(notifData || []));
+      setExpenses(dedupeList(Array.isArray(expData) ? expData : []));
+      setGroups(dedupeList(Array.isArray(grpData) ? grpData : []));
+      setSettlements(dedupeList(Array.isArray(stmData) ? stmData : []));
+      setNotifications(dedupeList(Array.isArray(notifData) ? notifData : []));
     } catch (err) {
       console.error('Failed to load live data:', err);
+      setGroups([]);
     } finally {
       setLoading(false);
     }
@@ -241,7 +242,7 @@ export const AppProvider = ({ children }) => {
     try {
       const created = await api.createGroup(groupData);
       if (created) {
-        setGroups((prev) => dedupeList([created, ...prev]));
+        setGroups((prev) => dedupeList([created, ...(Array.isArray(prev) ? prev : [])]));
       }
       addToast('Group created successfully!');
       setTimeout(() => refreshData(), 300);

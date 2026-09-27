@@ -26,9 +26,9 @@ export default function ProfilePage() {
   );
 
   // Compute profile stats
-  const totalExpensesCount = expenses.length;
-  const groupsCount = groups.length;
-  const settlementsCount = settlements.length;
+  const totalExpensesCount = Array.isArray(expenses) ? expenses.length : 0;
+  const groupsCount = Array.isArray(groups) ? groups.length : 0;
+  const settlementsCount = Array.isArray(settlements) ? settlements.length : 0;
 
   let amountPaid = 0;
   let amountReceived = 0;

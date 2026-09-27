@@ -22,7 +22,7 @@ import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function MainRouter() {
-  const { isAuthenticated } = useApp();
+  const { isAuthenticated, groups } = useApp();
 
   // Route state
   const [currentRoute, setCurrentRoute] = useState(() => {
@@ -90,6 +90,7 @@ function MainRouter() {
       case 'groups':
         return (
           <GroupsPage
+            groups={groups}
             onSelectGroup={(id) => {
               setSelectedGroupId(id);
               navigateTo('group-details', { groupId: id });
