@@ -4,8 +4,10 @@ dist/
 .env.*
 !.env.example
 !frontend/.env.production
+!.env.production
 
 backend/tmp/
 frontend/.vite/
 
 *.log
+backend/server.exe

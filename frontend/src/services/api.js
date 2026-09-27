@@ -6,7 +6,11 @@ import {
   initialUsers,
 } from '../data/mockData';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://expenseflow-bl9s.onrender.com/api';
+const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const resolvedUrl = (!rawApiUrl || !rawApiUrl.includes('bl9s'))
+  ? 'https://expenseflow-bl9s.onrender.com'
+  : rawApiUrl;
+const BASE_URL = resolvedUrl.replace(/\/+$/, '');
 
 // Helper to get token
 const getAuthHeaders = () => {

@@ -133,7 +133,14 @@ export const AppProvider = ({ children }) => {
     let reconnectTimeout;
     let heartbeatInterval;
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'wss://expenseflow-bl9s.onrender.com/api/ws';
+    const rawWsUrl = (import.meta.env.VITE_WS_URL || '').trim();
+    const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+    let wsUrl = 'wss://expenseflow-bl9s.onrender.com/api/ws';
+    if (rawWsUrl && rawWsUrl.includes('bl9s')) {
+      wsUrl = rawWsUrl;
+    } else if (rawApiUrl && rawApiUrl.includes('bl9s')) {
+      wsUrl = `${rawApiUrl.replace(/^http/, 'ws').replace(/\/+$/, '')}/api/ws`;
+    }
 
     const connectWs = () => {
       try {
